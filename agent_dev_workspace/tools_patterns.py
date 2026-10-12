@@ -138,17 +138,66 @@ def make_tools(session):
                 os.remove(db_path)
 
         result_id = session.next_result_id("patterns")
-        summary = {
-            "result_id": result_id,
-            "category_name": category_name,
-            "filtering_method": filtering_method,
-            "algorithm": algorithm,
-            "n_patterns": len(patterns_list),
-            "patterns": patterns_list
-        }
-        
-        session.artifacts[f"patterns_{category_name}_{filtering_method}_{algorithm}"] = patterns_list
-        session.store_result("mine_patterns_tool", {"category_name": category_name, "filtering_method": filtering_method, "algorithm": algorithm}, summary)
+
+        # Keep the complete pattern list in session artifacts.
+        artifact_key = (
+            f"patterns_{category_name}_{filtering_method}_{algorithm}"
+        )
+
+        session.artifacts[artifact_key] = patterns_list
+
+        # Build a complete report for storage.
+        patterns_df = pd.DataFrame(patterns_list)
+
+        if not patterns_df.empty and "support" in patterns_df.columns:
+            patterns_df = (
+                patterns_df
+                .sort_values(by="support", ascending=False)
+                .reset_index(drop=True)
+            )
+
+        # Small outputs are safe to return completely.
+        # This also preserves the existing fixture/test behaviour.
+        if len(patterns_list) <= 100:
+            summary = {
+                "result_id": result_id,
+                "category_name": category_name,
+                "filtering_method": filtering_method,
+                "algorithm": algorithm,
+                "n_patterns": len(patterns_list),
+                "patterns": patterns_list
+            }
+
+        # Large pattern sets must not all be sent to the LLM.
+        else:
+            if not patterns_df.empty:
+                top_20 = patterns_df.head(20).to_dict(
+                    orient="records"
+                )
+            else:
+                top_20 = []
+
+            summary = {
+                "result_id": result_id,
+                "category_name": category_name,
+                "filtering_method": filtering_method,
+                "algorithm": algorithm,
+                "n_patterns": len(patterns_list),
+                "top_20_patterns": top_20
+            }
+
+        session.store_result(
+            tool_name="mine_patterns_tool",
+            args={
+                "category_name": category_name,
+                "filtering_method": filtering_method,
+                "algorithm": algorithm,
+                "min_sup": min_sup,
+                "k": k
+            },
+            summary=summary,
+            full_report=patterns_df
+        )
 
         return summary
 
