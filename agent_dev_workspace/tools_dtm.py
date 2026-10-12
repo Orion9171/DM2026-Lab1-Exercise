@@ -6,7 +6,7 @@ from langchain_core.tools import tool
 
 def make_tools(session):
     @tool
-    def build_dtm_tool(ngram_range: list = [1, 1], max_features: int = None) -> dict:
+    def build_dtm_tool(ngram_range: list[int] = [1, 1], max_features: int = None) -> dict:
         """Builds a document-term matrix from session.dataframe['text'] using CountVectorizer,
         populating session.feature_matrix, session.feature_names, and session.artifacts["count_vectorizer"].
         
@@ -21,7 +21,7 @@ def make_tools(session):
             return {"error": "No dataset loaded. Please load a dataset first."}
             
         texts = session.dataframe["text"].fillna("").astype(str).tolist()
-        ngram_tuple = tuple(ngram_range)
+        ngram_tuple = tuple(int(x) for x in ngram_range)
         
         vectorizer = CountVectorizer(ngram_range=ngram_tuple, max_features=max_features)
         X = vectorizer.fit_transform(texts)
